@@ -23,6 +23,10 @@ use TrackMage\WordPress\Helper;
  */
 class Admin {
 
+    const LOCK_CHANGES_TIMEOUT = 300;
+
+    private $lockedChangesAt = null;
+
     /**
      * @since 0.1.0
      */
@@ -194,12 +198,15 @@ class Admin {
      * @since 0.1.0
      */
     public function select_workspace($value, $old_value, $option) {
+        if(null !== $this->lockedChangesAt && (time() - $this->lockedChangesAt) < self::LOCK_CHANGES_TIMEOUT  ) {
+            return $old_value;
+        }
         $resetPlugin = isset($_POST['reset_plugin_settings']) && $_POST['reset_plugin_settings'] === '1';
         // Exit if value has not changed.
         if ($value === $old_value || $resetPlugin) {
             return $old_value;
         }
-
+        $this->lockedChangesAt = time();
         $deleteData = isset($_POST['trackmage_delete_data']) && $_POST['trackmage_delete_data'] === '1';
         $client = Plugin::get_client();
         $url = Helper::get_endpoint();
@@ -215,6 +222,8 @@ class Admin {
                 $client->delete('/workflows/'.$integration, [RequestOptions::QUERY => ['deleteData'=>$deleteData]]);
             } catch(ClientException $e){
                 error_log('Unable to delete workflow: '.TrackMageClient::error($e));
+                add_action( 'admin_notices', [$this,'showErrorNotice'] );
+                return $old_value;
             }
         }
 
@@ -226,6 +235,7 @@ class Admin {
 
         // Stop here if no workspace is selected.
         if (empty($value)) {
+            $this->lockedChangesAt = null;
             return 0;
         }
 
@@ -234,6 +244,31 @@ class Admin {
         $password = md5($username . rand(1, 337));
         update_option('trackmage_webhook_username', $username);
         update_option('trackmage_webhook_password', $password);
+
+        $integration = [
+            'title' => get_bloginfo('url'),
+            'workspace' => '/workspaces/' . $value,
+            'type' => 'integration-woocommerce',
+            'enabled' => true,
+        ];
+
+        try {
+            $response = $client->get("/workspaces/{$value}/workflows", [
+                'query' => [
+                    'type' => 'integration-woocommerce',
+                    'title' => get_bloginfo('url')
+                ]
+            ]);
+            $integrations = TrackMageClient::collection($response);
+            if(count($integrations) > 0) {
+                $integration = "/workflows/{$integrations[0]['id']}";
+            }
+        } catch( ClientException $e ) {
+            error_log('An error during request to TrackMage: '.TrackMageClient::error($e));
+            $this->lockedChangesAt = null;
+            add_action( 'admin_notices', [$this,'showErrorNotice'] );
+            return $old_value;
+        }
 
         $workflow = [
             'type' => 'webhook',
@@ -247,12 +282,7 @@ class Admin {
             'password' => $password,
             'enabled' => true,
             'entity' => 'orders',
-            'integration' => [
-                'title' => get_bloginfo('name'),
-                'workspace' => '/workspaces/' . $value,
-                'type' => 'integration-woocommerce',
-                'enabled' => true,
-            ]
+            'integration' => $integration
         ];
 
         try {
@@ -260,6 +290,8 @@ class Admin {
             $data = TrackMageClient::item($response);
         } catch( ClientException $e ) {
             error_log('Unable to create webhook: '.TrackMageClient::error($e));
+            $this->lockedChangesAt = null;
+            add_action( 'admin_notices', [$this,'showErrorNotice'] );
             return $old_value;
         }
 
@@ -273,6 +305,7 @@ class Admin {
         update_option( 'trackmage_order_status_aliases', [] );
         update_option('trackmage_webhook', $data['id']);
         update_option('trackmage_integration', $data['integration']['id']);
+        $this->lockedChangesAt = null;
         return $value;
     }
 
@@ -329,5 +362,13 @@ class Admin {
             die();
         }
         return 0;
+    }
+
+    public function showErrorNotice() {
+            ?>
+        <div class="error notice">
+            <p><?php _e( 'An error occurred during changing workspace. Please try again later or contact with <a href="mailto:support@trackmage.com">TrackMage.com support</a>', 'trackmage' ); ?></p>
+        </div>
+            <?php
     }
 }
