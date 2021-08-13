@@ -6,7 +6,7 @@
  * Version:           1.0.8
  * Author:            TrackMage
  * Author URI:        https://trackmage.com
- * Text Domain:       trackmage-woo-shipment-tracking
+ * Text Domain:       trackmage
  * License:           GPL-3.0-or-later
  * License URI:       http://www.gnu.org/licenses/gpl-3.0.txt
  * GitHub Plugin URI: https://github.com/trackmage/trackmage-woo-shipment-tracking
@@ -120,6 +120,8 @@ add_action('plugins_loaded', 'trackMageInit');
 register_activation_hook(__FILE__, 'trackMageActivate');
 register_deactivation_hook(__FILE__, 'trackMageDeactivate');
 register_uninstall_hook( __FILE__, 'trackMageUninstall');
+
+load_plugin_textdomain( 'trackmage', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
 
 /**
  * trackMageActivate

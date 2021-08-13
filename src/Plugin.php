@@ -93,6 +93,11 @@ class Plugin {
     /** @var OrdersMapper|null */
     private $ordersMapper;
 
+    /**
+     * @var Shortcodes | null
+     */
+    private $shortcodes;
+
 
     /**
      * @param \wpdb $wpdb
@@ -195,6 +200,10 @@ class Plugin {
         }
 
         Helper::scheduleNextBackgroundTask(1);
+
+        if(Helper::canSync()) {
+            $this->getShortcodes()->init();
+        }
     }
 
     /**
@@ -332,6 +341,17 @@ class Plugin {
             $tableName = $this->wpdb->prefix.$oldTable;
             $this->wpdb->query("DROP TABLE IF EXISTS `{$tableName}`");
         }
+    }
+
+    /**
+     * @return Shortcodes
+     */
+    public function getShortcodes()
+    {
+        if($this->shortcodes === null){
+            $this->shortcodes = new Shortcodes();
+        }
+        return $this->shortcodes;
     }
 
 }

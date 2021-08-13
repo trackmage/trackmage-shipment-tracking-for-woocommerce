@@ -205,6 +205,40 @@ class Helper {
     }
 
     /**
+     * @return string|null
+     */
+    public static function requestShipmentsInfoByEmail( string $email) {
+        if(empty($email)) {
+            return null;
+        }
+        $client = Plugin::get_client();
+        $workspaceId = get_option('trackmage_workspace');
+
+        try {
+            $response = $client->get( '/workspaces/' . $workspaceId );
+            $data = TrackMageClient::item($response);
+            $trackingPageId = isset($data['defaultTrackingPage']) ? $data['defaultTrackingPage'] : null;
+            if ($trackingPageId === null || $trackingPageId === '') {
+                error_log(sprintf('defaultTrackingPage is empty for workspace %s', $workspaceId), 0);
+                return null;
+            }
+            $response = $client->get($trackingPageId);
+            $trackingPage = TrackMageClient::item($response);
+            $subdomain = isset($trackingPage['subdomain']) ? $trackingPage['subdomain'] : null;
+            if ($subdomain === null || $subdomain === '') {
+                error_log(sprintf('subdomain is empty for tracking page %s', $trackingPageId), 0);
+                return null;
+            }
+            $response = $client->get( "/public/tracking_page_by_domain/{$subdomain}/link_search/{$email}");
+            $data = TrackMageClient::item($response);
+            return isset($data['text']) ? $data['text']: null;
+        } catch( ClientException $e ) {
+            error_log('Error in getTrackingPageLink: '. TrackMageClient::error($e), 0);
+        }
+        return null;
+    }
+
+    /**
      * @param int $orderId
      * @return array of shipments
      */

@@ -6,7 +6,7 @@ vendor
 /build
 
 trackmage.zip
-languages/trackmage.pot
+!/languages/trackmage.pot
 composer.lock
 npm-debug.log
 .vscode
